@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Models\Project;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use App\Models\Technology;
 use App\Models\Type;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -30,8 +31,10 @@ class ProjectController extends Controller
 
         $project = new Project();
         $types = Type::all();
+        $technologies = Technology::all();
 
-        return view('admin.projects.create', compact('project', 'types'));
+
+        return view('admin.projects.create', compact('project', 'types', 'technologies'));
     }
 
     /**
@@ -43,7 +46,9 @@ class ProjectController extends Controller
             'name' => ['required', 'string', 'max:50', 'unique:projects'],
             'image' => 'nullable|image:jpg,jpeg,png',
             'content' => 'required|string',
-            'type_id' => 'nullable|exists:types,id'
+            'type_id' => 'nullable|exists:types,id',
+            'technologies' => 'nullable|exists:technologies,id'
+
 
         ], [
             'name.required' => 'Il nome è obbligatorio',
@@ -51,7 +56,9 @@ class ProjectController extends Controller
             'name.unique' => "Esiste già un progetto dal titolo $request->name",
             'content.required' => 'non può esistere un progetto senza contenuto',
             'image.image' => "Il file caricato non è valido",
-            'type_id.exists' => 'La categoria indicata è inesistente'
+            'type_id.exists' => 'La categoria indicata è inesistente',
+            'technologies.exists' => "uno o più tecnologie non sono valide",
+
         ]);
         $data = $request->all();
 
@@ -63,11 +70,14 @@ class ProjectController extends Controller
             $data['image'] = $img_url;
         }
 
+
         $project->fill($data);
 
         $project->slug = Str::slug($project->name, '-');
 
         $project->save();
+        if (array_key_exists('technologies', $data)) $project->technologies()->attach($data['technologies']);
+
         return to_route('admin.projects.show', compact('project'))->with('alert-type', 'success')->with('alert-message', 'Progetto aggiunto con successo');;
     }
 
@@ -89,8 +99,10 @@ class ProjectController extends Controller
 
     {
         $types = Type::all();
+        $technologies = Technology::all();
+        $project_technology_ids = $project->technologies->pluck('id')->toArray();
 
-        return view('admin.projects.edit', compact('project', 'types'));
+        return view('admin.projects.edit', compact('project', 'types', 'technologies', 'project_technology_ids'));
     }
 
     /**
@@ -101,7 +113,8 @@ class ProjectController extends Controller
         $request->validate([
             'name' => ['required', 'string', 'max:50', Rule::unique('projects')->ignore($project)],
             'image' => 'nullable|image:jpg,jpeg,png',
-            'content' => 'required|string'
+            'content' => 'required|string',
+            'technologies' => 'nullable|exists:technologies,id'
 
         ], [
             'name.required' => 'Il nome è obbligatorio',
@@ -109,10 +122,16 @@ class ProjectController extends Controller
             'name.unique' => "Esiste già un progetto dal titolo $request->name",
             'content.required' => 'non può esistere un progetto senza contenuto',
             'image.image' => "Il file caricato non è valido",
+            'technologies.exists' => "uno o più tecnologie non sono valide",
+
         ]);
         $data = $request->all();
         $data['slug'] = Str::slug($data['name'], '-');
         $project->update($data);
+        if (!array_key_exists('technologies', $data) && count($project->technologies)) $project->technologies()->detach();
+        elseif (array_key_exists('technologies', $data)) $project->technologies()->sync($data['technologies']);
+
+
         return to_route('admin.projects.index', $project)->with('alert-type', 'success')->with('alert-message', 'Progetto modificato con successo');
     }
 
@@ -143,6 +162,8 @@ class ProjectController extends Controller
     public function drop(String $id)
     {
         $project = Project::onlyTrashed()->findOrFail($id);
+        if (count($project->technologies)) $project->technologies()->detach();
+
         $project->forceDelete();
 
         return to_route('admin.projects.trash')->with('alert-message', "Progetto eliminato definitivamente")->with('alert-type', 'danger');

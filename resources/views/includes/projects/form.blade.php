@@ -69,6 +69,20 @@
         <img src="{{ old('image', $project->image ?? 'https://media.istockphoto.com/id/1147544807/vector/thumbnail-image-vector-graphic.jpg?s=612x612&w=0&k=20&c=rnCKVbdxqkjlcs3xH87-9gocETqpspHFXu5dIGB4wuM=') }}"
             alt="preview" class="img-fluid my-2" id="image-preview">
     </div>
+    <div class="col-12">
+        @foreach ($technologies as $technology)
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" name="technologies[]" type="checkbox"
+                    @if (in_array($technology->id, old('technologies', $project_technology_ids ?? []))) checked @endif id="technology-{{ $technology->id }}"
+                    value="{{ $technology->id }}">
+                <label class="form-check-label"
+                    for="technology-{{ $technology->id }}">{{ $technology->label }}</label>
+            </div>
+            @error('technologies')
+                <div class="text-danger">{{ $message }}</div>
+            @enderror
+        @endforeach
+    </div>
     <hr>
     <div class="d-flex justify-content-end mt-2">
         <button class="btn btn-success">
